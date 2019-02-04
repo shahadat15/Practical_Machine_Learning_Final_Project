@@ -1,0 +1,93 @@
+---
+title: "Practical Machine Learning: Course Project on Prediction Assignment"
+author: "Shahadat Iqbal"
+date: "February 3, 2019"
+output: html_document
+---
+
+## Objective  
+The main goal of this project to use the data from acceleromenter on the beld, forearm, arm, and dumbell participants to predict the manner in which they did the exercise. The Rmarkdown file is a writeup of all the project work and code. 
+
+## Creating the Environment
+```{r, cache = T}
+library(caret)
+library(rpart)
+library(rpart.plot)
+library(randomForest)
+library(corrplot)
+```
+## Download and Load the  Data
+Data is downloaded from the webling provided and saved in a directory named input_data. Then the data is loaded. Two differnt csv files are loaded.  
+```{r, cache = T}
+train_data_URL <-"https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv"
+test_data_URL <- "https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv"
+train_file_name <- "./input_data/pml-training.csv"
+test_file_name  <- "./input_data/pml-testing.csv"
+if (!file.exists("./input_data")) {dir.create("./input_data")}
+if (!file.exists(train_file_name)) {download.file(train_data_URL, destfile=train_file_name, method="curl")}
+if (!file.exists(test_file_name)) {download.file(test_data_URL, destfile=test_file_name, method="curl")}
+
+train_data_Raw <- read.csv("./input_data/pml-training.csv")
+test_data_raw <- read.csv("./input_data/pml-testing.csv")
+```  
+
+## General Observation of the data
+The first step is to have an insight of the data  
+```{r, cache = T}
+dim(train_data_Raw)
+dim(test_data_raw)
+summary(train_data_Raw)
+summary(test_data_raw)
+```
+Major observations:
+* For training data: Total observations 19622 and total variables 160
+* For test data: Total observations 20 and total variables 160
+* There are many NA values in the dataframe which need to be removed
+* some of the variables are just for description and will not affect the model prediction. therefore those variable need to be removed. 
+
+## Clean the data
+The observations are considered to run proper data cleaning processes.Firstly, the columns that contain missing values (NA) are removed.
+```{r, cache = T}
+train_data <- train_data_Raw[, colSums(is.na(train_data_Raw)) == 0] 
+```  
+Secondly, those columns are removed which has nearly zero variance.
+
+```{r, cache = T}
+nearly_zero_variance <- nearZeroVar(train_data)
+train_data <- train_data[, -nearly_zero_variance]
+```
+Thirdly, The less important, descriptive colums are removed.
+```{r, cache = T}
+trainRemove <- grepl("^X|timestamp|window|name", names(train_data))
+train_data <- train_data[, !trainRemove]
+```
+
+## Train Data Set and Validation Data Set
+The whole training dataset need to be devided into two dataset: training and validation. A 70:30 split has been made on the data. 
+```{r, cache = T}
+set.seed(56987) 
+inTrain <- createDataPartition(train_data$classe, p=0.70, list=F)
+Training_train_data <- train_data[inTrain, ]
+Validation_train_data <- train_data[-inTrain, ]
+```
+
+## Prediction Model Building
+Different model has been tried to predict the classes. If has been found that the random forest provide the most accurate results. A five-fold cross validation is appplited to the random forest algoritm.   
+```{r, cache = T}
+developed_model <- train(classe ~ ., data=Training_train_data, method="rf", trControl=trainControl(method="cv", 5), ntree=250)
+developed_model
+```
+Then, we estimate the performance of the model on the validation data set.  
+```{r, cache = T}
+prediction_on_validation_Data <- predict(developed_model, Validation_train_data)
+confusionMatrix(Validation_train_data$classe, prediction_on_validation_Data)
+accuracy <- postResample(prediction_on_validation_Data, Validation_train_data$classe)
+accuracy
+```
+
+## Applying the Prediction Model for Test Data Set
+The developed model has been utilized the preict the class of the test data set. 
+```{r, cache = T}
+Prediction_on_test_data <- predict(developed_model, test_data_raw)
+Prediction_on_test_data
+```  
